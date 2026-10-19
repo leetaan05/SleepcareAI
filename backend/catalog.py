@@ -6,7 +6,7 @@ DEFAULT_MODEL = "slarda-dinov3-quick"
 MODELS = {
     "slarda-dinov3-quick": {
         "key": "slarda-dinov3-quick",
-        "id": "slarda-dinov3-quick:706e9c1486b1",
+        "id": "slarda-dinov3-quick:4502866c503a",
         "name": "SLARDA + DINOv3 · QuickRun A→B",
         "description": "Phổ EEG → DINOv3 ViT-S/16 → bộ phân loại 5 giai đoạn.",
         "note": "Bundle thử nghiệm trên tập nhỏ 80 epoch; chưa đại diện chất lượng model huấn luyện đầy đủ.",

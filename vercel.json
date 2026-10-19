@@ -7,7 +7,12 @@
   "functions": {
     "api/index.py": {
       "maxDuration": 120,
-      "includeFiles": "backend/models/**",
+      "includeFiles": [
+        "backend/models/slarda-dinov3-quick.onnx",
+        "backend/models/sleep-cnn-source.onnx",
+        "backend/models/dinov3-metadata.json",
+        "backend/models/metadata.json"
+      ],
       "excludeFiles": "{frontend/**,tests/**,docs/**,dist/**,node_modules/**,.venv/**,**/__pycache__/**,backend/models/*.pt}"
     }
   },
