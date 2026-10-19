@@ -20,8 +20,9 @@ Tài liệu chính thức đã đối chiếu:
 - [Python runtime](https://vercel.com/docs/functions/runtimes/python): hỗ trợ FastAPI,
   đọc `.python-version` và đóng gói model qua cấu hình `functions`.
 
-PyTorch/Transformers làm package lớn; chỉ xem dung lượng file .pt (~83 MiB) là
-chưa đủ. `vercel.json` bật Fluid Compute và giới hạn mỗi request 120 giây.
+Production chỉ dùng ONNX Runtime CPU; file ONNX khoảng 83 MiB và file `.pt`
+gốc bị loại khỏi Function bằng `excludeFiles`. `vercel.json` bật Fluid Compute
+và giới hạn mỗi request 120 giây.
 DINOv3 chỉ nhận 4 epoch/request; CNN nhận 64. Tổng file nguồn web dưới 100 MiB,
 nhưng thư viện cài trên server lớn hơn. Cần kiểm tra Build Logs và runtime thật.
 Không cam kết host miễn phí luôn hoạt động hoặc không hết quota; không dùng ping
@@ -47,17 +48,17 @@ Python 3.12 từ https://www.python.org/downloads/windows/; bật Add Python to 
 ```powershell
 cd "G:\My Drive\SleepCare\SleepcareWeb"
 Get-ChildItem .\backend\models
-Get-FileHash .\backend\models\slarda-dinov3-quick.pt -Algorithm SHA256
+Get-FileHash .\backend\models\slarda-dinov3-quick.onnx -Algorithm SHA256
 ```
 
-Phải có `slarda-dinov3-quick.pt`, `dinov3-metadata.json`,
+Phải có `slarda-dinov3-quick.onnx`, `dinov3-metadata.json`,
 `sleep-cnn-source.onnx`, `metadata.json`. SHA-256 DINOv3 phải là:
 
 ```text
-706E9C1486B18AD772B5E89A8575F6823A90F427C49A8B26746D105363F0D4E5
+4502866C503AD9B1A543E58F7B13D3A0FCA146EECCDC0A60C88059293D8B921B
 ```
 
-File .pt này đã được chuẩn bị trong SleepcareWeb. Nếu bạn chỉ sao chép mã nguồn
+File ONNX này đã được chuẩn bị trong SleepcareWeb. Nếu bạn chỉ sao chép mã nguồn
 và làm mất file, lấy lại từ bundle gốc bằng:
 
 ```powershell
@@ -65,7 +66,7 @@ Copy-Item "..\SLARDA_DINOv3\QuickRun\outputs\deployable_a_to_b.pt" ".\backend\mo
 ```
 
 Không cần copy `model.safetensors`, dataset hoặc thư mục training. Loader web
-nạp toàn bộ state từ bundle và bỏ qua đường dẫn local cũ trong metadata.
+nạp ONNX bằng ONNX Runtime, không tải model từ mạng.
 
 ## 3. Cài thư viện và chạy kiểm thử
 
@@ -80,8 +81,8 @@ npm.cmd run build
 ```
 
 Nếu `python` chưa phải 3.11/3.12, dùng `py -3.12 -m venv .venv` cho bước tạo môi trường.
-Lần đầu pip tải PyTorch CPU khoảng vài trăm MB. Không dùng lệnh cài CUDA từ
-README training. Giữ `requirements.txt` để máy chủ dùng cùng runtime đã ghim.
+Production chỉ tải ONNX Runtime CPU. Không cài PyTorch/CUDA từ README training;
+PyTorch chỉ cần trong môi trường riêng nếu muốn tự xuất lại ONNX.
 
 Để thử bằng trình duyệt trước khi upload, chạy backend trong PowerShell thứ nhất:
 
@@ -138,26 +139,18 @@ File bundle nhỏ hơn 100 MiB nên không cần Git LFS cho bản này. Nếu s
 checkpoint lớn hơn, cần đánh giá lại cách lưu model. Model DINOv3 đi theo
 [license Meta](https://github.com/facebookresearch/dinov3/blob/main/LICENSE.md).
 
-## 5. Import vào Vercel và bật package lớn
+## 5. Import vào Vercel
 
 1. Đăng nhập Vercel → Add New → Project → Import repository `sleepcareweb`.
 2. Root Directory là `.` vì repo chứa trực tiếp `package.json`. Nếu repo chứa
    thư mục SleepcareWeb bên trong, chọn đúng thư mục đó.
 3. Framework Preset **Vite**; Build Command `npm run build`; Output Directory `dist`.
-4. Trong Environment Variables, thêm tên `VERCEL_SUPPORT_LARGE_FUNCTIONS`,
-   giá trị `1`, áp dụng **Production và Preview**. Đây là biến cấu hình, không phải token.
-5. Vào Settings → Functions, bật Fluid Compute nếu project có công tắc này.
-   Sau đó Redeploy (không chỉ bấm Retry trên bản deploy cũ). Biến môi trường chỉ
-   có hiệu lực từ lần build mới.
+4. Vào Settings → Functions, bật Fluid Compute nếu project có công tắc này.
+5. Deploy. Không cần `VERCEL_SUPPORT_LARGE_FUNCTIONS` vì production không còn
+   cài PyTorch/Transformers.
 
-Vercel cài CPU Torch/Transformers/ONNX Runtime từ requirements và đóng gói
-`backend/models` một lần qua `api/index.py`. Không chọn GPU hoặc dịch vụ trả phí.
-Large Functions hiện cho phép tối đa 5 GB trên project đủ điều kiện; bundle hiện
-tại đã giảm việc lặp function nhưng vẫn cần bật biến trên. Nếu log vẫn báo
-`Total bundle size ... exceeds ... 500 MB`, hãy dừng và kiểm tra biến đã có ở
-đúng project và đúng Production/Preview, rồi tạo một deployment mới. Nếu sau đó
-log báo bundle vượt 5 GB, Vercel Hobby không đủ cho PyTorch; khi đó cần chuyển
-backend AI sang một host Python/container khác và giữ Vercel cho frontend.
+Vercel chỉ cài FastAPI, NumPy và ONNX Runtime rồi đóng gói ONNX/CNN một lần qua
+`api/index.py`. Bundle production dự kiến dưới giới hạn Python Function 500 MB.
 
 ## 6. Kiểm tra model thật trên production
 
@@ -172,7 +165,7 @@ Invoke-RestMethod "$url/api/health?model=cnn-source" | ConvertTo-Json
 ```
 
 Cả hai health phải trả `status: ok`; DINOv3 trả
-`model_id: slarda-dinov3-quick:706e9c1486b1` và `engine: pytorch-cpu`;
+`model_id: slarda-dinov3-quick:4502866c503a` và `engine: onnxruntime-cpu`;
 CNN trả `model_id: sleep-cnn-source:b52c50097fe9` và `engine: onnxruntime-cpu`.
 
 Trong browser:
@@ -204,10 +197,9 @@ và kết quả tham chiếu/kiểm thử; không chỉ đổi tên file checkpo
 | Lỗi | Cách xử lý |
 | --- | --- |
 | `/api/models` 404 | Deploy cả project, kiểm tra `api/index.py`, Root Directory và preset Vite |
-| Bundle vượt 500 MB | Kiểm tra Large Functions, biến môi trường `1`, Fluid Compute/Active CPU, rồi Redeploy |
-| Tổng bundle khoảng 6 GB | Bản cũ có ba entrypoint cùng import PyTorch; phải dùng `api/index.py` duy nhất rồi redeploy |
-| `No matching distribution` hoặc `uv pip install` thất bại | Dùng commit mới nhất; requirements đã chọn wheel riêng cho Python 3.12/3.13 và 3.14, có CPU index cho Torch. Kiểm tra Vercel đang dùng Python 3.12–3.14; đừng thay sang Torch CUDA |
-| DINOv3 503 | Xem Function Logs: đủ .pt, checksum đúng, CPU Torch/Transformers đã cài; không tự chọn CNN thay |
+| Bundle vượt 500 MB | Kiểm tra deploy dùng commit mới nhất, `api/index.py`, file ONNX và `excludeFiles` trong `vercel.json` |
+| `No matching distribution` hoặc `uv pip install` thất bại | Kiểm tra Vercel đang dùng Python 3.12–3.14; requirements đã chọn wheel ONNX Runtime tương thích |
+| DINOv3 503 | Xem Function Logs: đủ `slarda-dinov3-quick.onnx`, checksum đúng và ONNX Runtime đã cài |
 | 422 | Kiểm tra model key, .npy đúng định dạng; DINOv3 tối đa 4 epoch/request |
 | 429 | Máy chủ đang bận hoặc nền tảng giới hạn; client đã thử lại có giới hạn, chờ rồi chạy lại |
 | 504/hết RAM | Kiểm tra logs và cold start; kết quả local không chứng minh tài nguyên cloud đủ cho mọi bản ghi |

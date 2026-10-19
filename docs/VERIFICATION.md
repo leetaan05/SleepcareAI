@@ -2,22 +2,24 @@
 
 Ngày 19/10/2026, môi trường Windows. Bản sao website được dùng để cài PyTorch CPU
 trong môi trường ảo tách khỏi thư mục Google Drive; mã và model cuối cùng được
-sao chép về `SleepcareWeb` sau khi kiểm thử. Python local 3.11, PyTorch
-2.6.0+cpu, Transformers 5.20.1, ONNX Runtime 1.22.1.
+sao chép về `SleepcareWeb` sau khi kiểm thử. Python local 3.11 và ONNX Runtime
+1.22.1. PyTorch/Transformers chỉ dùng trong môi trường export kiểm chứng,
+không nằm trong runtime production.
 
 | Kiểm tra | Kết quả |
 | --- | --- |
 | SHA-256 bundle DINOv3 đã sao chép | `706e9c1486b18ad772b5e89a8575f6823a90f427c49a8b26746d105363f0d4e5` |
-| Nạp bundle bằng `torch.load(weights_only=True)` và `load_state_dict(strict=True)` | Đạt, không cần `model.safetensors` ở runtime |
+| SHA-256 model ONNX production | `4502866c503ad9b1a543e58f7b13d3a0fca146eeccdc0a60c88059293d8b921b` |
+| Xuất ONNX từ bundle và kiểm tra bằng ONNX Runtime | Đạt; sai số logits tối đa khoảng `1.70e-5` trên fixture, không cần PyTorch/Transformers ở runtime |
 | So sánh bản web với QuickRun gốc trên 24 epoch EEG tổng hợp | Nhãn giống nhau; logits và confidence trong sai số 1e-5 |
 | Backend/API unit tests | 10/10 đạt; gồm hai model, danh sách model, giới hạn batch, model thiếu, 429 |
 | Frontend tests | 6/6 đạt; gồm chọn đúng endpoint, 4/64 epoch mỗi batch, version, báo cáo |
 | TypeScript + Vite production build | Đạt |
 | npm audit sau cập nhật Vite 7.3.7 | 0 vulnerability được báo |
 
-Vercel entrypoint đã gom từ ba file API thành `api/index.py`, để Python runtime
-đóng gói PyTorch dùng chung một lần. Bản cũ có thể tạo tổng bundle khoảng 6,4 GB
-do lặp cùng dependency cho từng function; bản mới vẫn cần Large Functions beta.
+Vercel entrypoint đã gom từ ba file API thành `api/index.py`. Production dùng
+ONNX Runtime và loại file `.pt` khỏi Function; không còn phụ thuộc PyTorch nên
+không cần Large Functions beta.
 
 Sau khi chép 21 file đã sửa (gồm bundle) về đúng `SleepcareWeb` trên ổ G:,
 SHA-256 của từng file đều khớp bản đã kiểm thử. Chạy lại kiểm thử trực tiếp

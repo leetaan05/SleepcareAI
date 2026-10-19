@@ -10,10 +10,10 @@ MODELS = {
         "name": "SLARDA + DINOv3 · QuickRun A→B",
         "description": "Phổ EEG → DINOv3 ViT-S/16 → bộ phân loại 5 giai đoạn.",
         "note": "Bundle thử nghiệm trên tập nhỏ 80 epoch; chưa đại diện chất lượng model huấn luyện đầy đủ.",
-        "engine": "pytorch-cpu", "max_batch_epochs": 4,
+        "engine": "onnxruntime-cpu", "max_batch_epochs": 4,
         "smoke_test_only": True, "normalization_floor": 1e-6,
-        "file": "slarda-dinov3-quick.pt",
-        "sha256": "706e9c1486b18ad772b5e89a8575f6823a90f427c49a8b26746d105363f0d4e5",
+        "file": "slarda-dinov3-quick.onnx",
+        "sha256": "4502866c503ad9b1a543e58f7b13d3a0fca146eeccdc0a60c88059293d8b921b",
     },
     "cnn-source": {
         "key": "cnn-source", "id": "sleep-cnn-source:b52c50097fe9",

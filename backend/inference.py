@@ -39,17 +39,8 @@ def get_runner(key: str):
                 digest = hashlib.file_digest(stream, "sha256").hexdigest()
             if digest != spec["sha256"]:
                 raise RuntimeError("Model checksum mismatch")
-            if key == "cnn-source":
-                import onnxruntime as ort
-                options = ort.SessionOptions()
-                options.intra_op_num_threads = 1
-                options.inter_op_num_threads = 1
-                options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
-                _runners[key] = ort.InferenceSession(str(path), sess_options=options,
-                                                     providers=["CPUExecutionProvider"])
-            else:
-                from backend.dinov3_model import load_model
-                _runners[key] = load_model(path)
+            from backend.dinov3_onnx import load_model
+            _runners[key] = load_model(path)
     return _runners[key]
 
 
@@ -123,11 +114,7 @@ def predict(body: bytes, model: str = DEFAULT_MODEL) -> dict:
         raise ModelBusy("Máy chủ đang phân tích một yêu cầu khác. Hãy thử lại sau.")
     try:
         runner = get_runner(model)
-        if model == "cnn-source":
-            logits = runner.run(["logits"], {"eeg": values})[0]
-        else:
-            from backend.dinov3_model import run_model
-            logits = run_model(runner, values)
+        logits = runner.run(["logits"], {"eeg": values})[0]
     finally:
         _inference_lock.release()
     if logits.shape != (len(samples), 5) or not np.isfinite(logits).all():

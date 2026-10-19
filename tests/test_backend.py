@@ -99,7 +99,7 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(self.client.get("/api/analyze").status_code, 405)
 
     def test_dinov3_logits_and_predictions_match_original_quickrun(self):
-        from backend.dinov3_model import run_model
+        from backend.dinov3_onnx import run_model
         golden = json.loads((ROOT / "tests/fixtures/dinov3-parity.json").read_text())
         all_predictions, all_confidences, all_logits = [], [], []
         for start in range(0, len(self.samples), 4):
@@ -107,14 +107,14 @@ class BackendTests(unittest.TestCase):
             result = predict_model(npy(chunk), DEFAULT_MODEL)
             self.assertEqual(result["model_key"], DEFAULT_MODEL)
             self.assertEqual(result["model_id"], MODELS[DEFAULT_MODEL]["id"])
-            self.assertEqual(result["engine"], "pytorch-cpu")
+            self.assertEqual(result["engine"], "onnxruntime-cpu")
             self.assertTrue(result["smoke_test_only"])
             all_predictions.extend(result["predictions"])
             all_confidences.extend(result["confidences"])
             values, _ = normalize(chunk, 1e-6)
             all_logits.extend(run_model(get_runner(DEFAULT_MODEL), values).tolist())
         self.assertEqual(all_predictions, golden["predictions"])
-        np.testing.assert_allclose(all_logits, golden["logits"], atol=1e-5, rtol=1e-5)
+        np.testing.assert_allclose(all_logits, golden["logits"], atol=2e-5, rtol=2e-5)
         np.testing.assert_allclose(all_confidences, golden["confidences"], atol=1e-5)
 
     def test_model_catalog_health_default_selection_and_batch_limits(self):

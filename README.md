@@ -4,20 +4,21 @@ React/Vite + FastAPI. Website chạy suy luận thật trên CPU của backend v
 
 | Lựa chọn | Runtime | File đóng gói | Batch tối đa |
 | --- | --- | --- | --- |
-| **SLARDA + DINOv3 · QuickRun A→B** (mặc định) | PyTorch CPU | `backend/models/slarda-dinov3-quick.pt` (~82,67 MiB) | 4 epoch/request |
+| **SLARDA + DINOv3 · QuickRun A→B** (mặc định) | ONNX Runtime CPU | `backend/models/slarda-dinov3-quick.onnx` (~83,25 MiB) | 4 epoch/request |
 | EEG_M_SL · CNN source-only | ONNX Runtime CPU | `backend/models/sleep-cnn-source.onnx` (~385 KiB) | 64 epoch/request |
 
 Bundle DINOv3 được sao chép nguyên trạng từ
 `../SLARDA_DINOv3/QuickRun/outputs/deployable_a_to_b.pt`.
 SHA-256: `706e9c1486b18ad772b5e89a8575f6823a90f427c49a8b26746d105363f0d4e5`.
 
-**Bản này thực sự chạy bundle DINOv3 trên server.** Bundle chứa đủ 191 tensor
-(21.650.693 tham số), gồm backbone, projector và classifier. Loader mới dựng
-đúng kiến trúc rồi `load_state_dict(..., strict=True)`; dùng
-`torch.load(..., weights_only=True)`. Không cần `model.safetensors`, thư mục
-training, đường dẫn ổ G:, GPU hay token Hugging Face ở runtime. Đường dẫn
-`dinov3_checkpoint` cũ bên trong bundle không được sử dụng. SHA-256 phải khớp
-trước khi nạp; thiếu/hỏng model sẽ báo lỗi, không tự đổi model hoặc dùng trọng số ngẫu nhiên.
+**Bản này thực sự chạy bundle DINOv3 trên server.** Bundle gốc chứa đủ 191 tensor
+(21.650.693 tham số), gồm backbone, projector và classifier. Bản production đã
+được xuất sang ONNX từ đúng bundle đó; `onnxruntime` nạp file ONNX và không cần
+PyTorch/Transformers trong Function. Không cần `model.safetensors`, thư mục
+training, đường dẫn ổ G:, GPU hay token Hugging Face ở runtime. SHA-256 ONNX phải
+khớp trước khi nạp; thiếu/hỏng model sẽ báo lỗi, không tự đổi model hoặc dùng
+trọng số ngẫu nhiên. File `.pt` gốc chỉ giữ để kiểm chứng/export và bị loại khỏi
+Vercel Function.
 
 ## Giới hạn của bundle tạm
 
@@ -42,9 +43,8 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-`requirements.txt` dùng PyTorch **CPU**. Python 3.12/3.13 giữ bản đã kiểm thử;
-Python 3.14 tự chọn wheel mới hơn có ABI tương thích. Lần đầu cần tải khoảng
-vài trăm MB.
+`requirements.txt` chỉ cài ONNX Runtime CPU cho production. Python 3.12/3.13
+giữ bản đã kiểm thử; Python 3.14 tự chọn wheel mới hơn có ABI tương thích.
 Không cài CUDA hoặc toàn bộ requirements của thư mục training vào web.
 Nếu `python` đang là bản khác, dùng `py -3.12 -m venv .venv` thay lệnh tạo môi trường.
 
@@ -103,7 +103,7 @@ Lịch sử tối đa 20 báo cáo nằm trong localStorage của từng trình 
 
 ```text
 backend/catalog.py           # Danh sách model và SHA-256 được phép
-backend/dinov3_model.py      # Kiến trúc DINOv3 độc lập dùng để suy luận
+backend/dinov3_onnx.py       # Loader DINOv3 ONNX Runtime dùng ở production
 backend/inference.py         # Kiểm tra NPY, chuẩn hóa, điều phối hai model
 backend/app.py               # API dùng chung ở local và Vercel
 backend/models/              # Hai model và metadata
@@ -132,13 +132,9 @@ nhãn và confidence của backend độc lập với fixture này. Xem chi ti�
 ## Deploy miễn phí
 
 Đọc [DEPLOYMENT.md](docs/DEPLOYMENT.md). Vẫn dùng frontend Vite + Python Functions
-trên Vercel Hobby, nhưng **PyTorch làm bundle server lớn hơn giới hạn mặc định**.
-Project dùng một entrypoint `api/index.py` để tránh đóng gói lặp backend ba lần.
-Vẫn phải bật Fluid Compute và Large Functions bằng biến
-`VERCEL_SUPPORT_LARGE_FUNCTIONS=1` trong Vercel trước khi redeploy. Nếu vẫn thấy
-`maximum function size (500 MB)`, biến chưa áp dụng đúng môi trường hoặc project
-chưa đủ điều kiện Large Functions. Tính năng này đang beta; code local chạy được
-không thay thế kiểm tra build và suy luận trên tài khoản Vercel thực tế.
+trên Vercel Hobby. Production dùng ONNX Runtime CPU nên không cần PyTorch/Transformers
+hoặc Large Functions; `api/index.py` vẫn là entrypoint duy nhất. Code local chạy
+được không thay thế kiểm tra build và suy luận trên tài khoản Vercel thực tế.
 
 Model DINOv3 có [giấy phép riêng của Meta](https://github.com/facebookresearch/dinov3/blob/main/LICENSE.md).
 Giữ nguồn gốc/metadata; hướng dẫn dùng repository GitHub cá nhân Private để

@@ -8,3 +8,6 @@ __pycache__/
 **/__pycache__/
 requirements-dev.txt
 *.zip
+backend/models/*.pt
+backend/dinov3_model.py
+tools/

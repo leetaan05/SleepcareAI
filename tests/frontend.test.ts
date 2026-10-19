@@ -4,7 +4,7 @@ import { infer, encodeNpy, BATCH_EPOCHS, listModels, checkServer, type ModelSpec
 import { parseNpy, parseResults, makeReport } from '../frontend/src/data.ts';
 
 const cnn: ModelSpec = { key: 'cnn-source', id: 'cnn:v1', name: 'CNN', description: 'CNN', note: '', engine: 'onnxruntime-cpu', max_batch_epochs: 64, smoke_test_only: false, available: true };
-const dino: ModelSpec = { ...cnn, key: 'slarda-dinov3-quick', id: 'dino:v1', name: 'DINOv3 QuickRun', engine: 'pytorch-cpu', max_batch_epochs: 4, smoke_test_only: true };
+const dino: ModelSpec = { ...cnn, key: 'slarda-dinov3-quick', id: 'dino:v1', name: 'DINOv3 QuickRun', engine: 'onnxruntime-cpu', max_batch_epochs: 4, smoke_test_only: true };
 function reply(model: ModelSpec, epochs: number) {
   return { schema_version: 1, model_id: model.id, model_key: model.key, model: model.name,
     engine: model.engine, smoke_test_only: model.smoke_test_only, epoch_seconds: 30,
