@@ -145,14 +145,19 @@ checkpoint lớn hơn, cần đánh giá lại cách lưu model. Model DINOv3 đ
    thư mục SleepcareWeb bên trong, chọn đúng thư mục đó.
 3. Framework Preset **Vite**; Build Command `npm run build`; Output Directory `dist`.
 4. Trong Environment Variables, thêm tên `VERCEL_SUPPORT_LARGE_FUNCTIONS`,
-   giá trị `1`, áp dụng Production và Preview. Đây là biến cấu hình, không phải token.
-5. Deploy. Với project cũ: Settings → Environment Variables thêm biến trên;
-   Settings → Functions kiểm tra Fluid Compute/Active CPU đang bật; Redeploy.
+   giá trị `1`, áp dụng **Production và Preview**. Đây là biến cấu hình, không phải token.
+5. Vào Settings → Functions, bật Fluid Compute nếu project có công tắc này.
+   Sau đó Redeploy (không chỉ bấm Retry trên bản deploy cũ). Biến môi trường chỉ
+   có hiệu lực từ lần build mới.
 
 Vercel cài CPU Torch/Transformers/ONNX Runtime từ requirements và đóng gói
-backend/models. Không chọn GPU hoặc dịch vụ trả phí. Nếu project không được
-bật Large Functions beta hoặc package vượt giới hạn, deploy này chưa đạt;
-lưu Build Logs để xử lý, không tự chuyển sang Pro chỉ để bỏ lỗi.
+`backend/models` một lần qua `api/index.py`. Không chọn GPU hoặc dịch vụ trả phí.
+Large Functions hiện cho phép tối đa 5 GB trên project đủ điều kiện; bundle hiện
+tại đã giảm việc lặp function nhưng vẫn cần bật biến trên. Nếu log vẫn báo
+`Total bundle size ... exceeds ... 500 MB`, hãy dừng và kiểm tra biến đã có ở
+đúng project và đúng Production/Preview, rồi tạo một deployment mới. Nếu sau đó
+log báo bundle vượt 5 GB, Vercel Hobby không đủ cho PyTorch; khi đó cần chuyển
+backend AI sang một host Python/container khác và giữ Vercel cho frontend.
 
 ## 6. Kiểm tra model thật trên production
 
@@ -198,8 +203,9 @@ và kết quả tham chiếu/kiểm thử; không chỉ đổi tên file checkpo
 
 | Lỗi | Cách xử lý |
 | --- | --- |
-| `/api/models` 404 | Deploy cả project, kiểm tra `api/models.py`, Root Directory và preset Vite |
+| `/api/models` 404 | Deploy cả project, kiểm tra `api/index.py`, Root Directory và preset Vite |
 | Bundle vượt 500 MB | Kiểm tra Large Functions, biến môi trường `1`, Fluid Compute/Active CPU, rồi Redeploy |
+| Tổng bundle khoảng 6 GB | Bản cũ có ba entrypoint cùng import PyTorch; phải dùng `api/index.py` duy nhất rồi redeploy |
 | `No matching distribution` | Kiểm tra Python 3.12, dòng CPU index và phiên bản requirements; đừng thay sang Torch CUDA |
 | DINOv3 503 | Xem Function Logs: đủ .pt, checksum đúng, CPU Torch/Transformers đã cài; không tự chọn CNN thay |
 | 422 | Kiểm tra model key, .npy đúng định dạng; DINOv3 tối đa 4 epoch/request |

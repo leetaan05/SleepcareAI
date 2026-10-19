@@ -5,7 +5,7 @@
   "outputDirectory": "dist",
   "fluid": true,
   "functions": {
-    "api/*.py": {
+    "api/index.py": {
       "maxDuration": 120,
       "includeFiles": "backend/models/**",
       "excludeFiles": "{frontend/**,tests/**,docs/**,dist/**,node_modules/**,.venv/**,**/__pycache__/**}"

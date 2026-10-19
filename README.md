@@ -105,7 +105,7 @@ backend/dinov3_model.py      # Kiến trúc DINOv3 độc lập dùng để suy 
 backend/inference.py         # Kiểm tra NPY, chuẩn hóa, điều phối hai model
 backend/app.py               # API dùng chung ở local và Vercel
 backend/models/              # Hai model và metadata
-api/                        # Ba entrypoint Vercel
+api/index.py                # Một entrypoint FastAPI cho toàn bộ /api/*
 frontend/src/               # Dropdown model, client chia batch, báo cáo
 tests/                      # Kiểm thử API/model và frontend
 docs/DEPLOYMENT.md           # Hướng dẫn deploy từng bước cho người mới
@@ -130,9 +130,12 @@ nhãn và confidence của backend độc lập với fixture này. Xem chi ti�
 ## Deploy miễn phí
 
 Đọc [DEPLOYMENT.md](docs/DEPLOYMENT.md). Vẫn dùng frontend Vite + Python Functions
-trên Vercel Hobby, nhưng **thêm PyTorch làm bundle server lớn hơn trước**:
-cần Fluid Compute và Large Functions; hướng dẫn có biến
-`VERCEL_SUPPORT_LARGE_FUNCTIONS=1`. Tính năng này đang beta. Code local chạy được
+trên Vercel Hobby, nhưng **PyTorch làm bundle server lớn hơn giới hạn mặc định**.
+Project dùng một entrypoint `api/index.py` để tránh đóng gói lặp backend ba lần.
+Vẫn phải bật Fluid Compute và Large Functions bằng biến
+`VERCEL_SUPPORT_LARGE_FUNCTIONS=1` trong Vercel trước khi redeploy. Nếu vẫn thấy
+`maximum function size (500 MB)`, biến chưa áp dụng đúng môi trường hoặc project
+chưa đủ điều kiện Large Functions. Tính năng này đang beta; code local chạy được
 không thay thế kiểm tra build và suy luận trên tài khoản Vercel thực tế.
 
 Model DINOv3 có [giấy phép riêng của Meta](https://github.com/facebookresearch/dinov3/blob/main/LICENSE.md).

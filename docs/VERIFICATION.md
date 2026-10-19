@@ -15,6 +15,10 @@ sao chép về `SleepcareWeb` sau khi kiểm thử. Python local 3.11, PyTorch
 | TypeScript + Vite production build | Đạt |
 | npm audit sau cập nhật Vite 7.3.7 | 0 vulnerability được báo |
 
+Vercel entrypoint đã gom từ ba file API thành `api/index.py`, để Python runtime
+đóng gói PyTorch dùng chung một lần. Bản cũ có thể tạo tổng bundle khoảng 6,4 GB
+do lặp cùng dependency cho từng function; bản mới vẫn cần Large Functions beta.
+
 Sau khi chép 21 file đã sửa (gồm bundle) về đúng `SleepcareWeb` trên ổ G:,
 SHA-256 của từng file đều khớp bản đã kiểm thử. Chạy lại kiểm thử trực tiếp
 trong thư mục đích: backend **10/10 đạt**, frontend **6/6 đạt**.
