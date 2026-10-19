@@ -1,94 +1,140 @@
-# SleepcareWeb
+# SleepcareWeb — chọn model và phân tích EEG trên server
 
-Ứng dụng React + backend FastAPI để giảng viên truy cập bằng URL công khai,
-tải EEG lên và chạy AI **trên máy chủ**. Giao diện dựa trên thư mục `web/`.
+React/Vite + FastAPI. Website chạy suy luận thật trên CPU của backend và cho chọn:
 
-## Cấu trúc
+| Lựa chọn | Runtime | File đóng gói | Batch tối đa |
+| --- | --- | --- | --- |
+| **SLARDA + DINOv3 · QuickRun A→B** (mặc định) | PyTorch CPU | `backend/models/slarda-dinov3-quick.pt` (~82,67 MiB) | 4 epoch/request |
+| EEG_M_SL · CNN source-only | ONNX Runtime CPU | `backend/models/sleep-cnn-source.onnx` (~385 KiB) | 64 epoch/request |
 
-```text
-SleepcareWeb/
-├── frontend/
-│   ├── src/               # Giao diện, đọc file xem trước, gọi API
-│   ├── public/samples/    # EEG mô phỏng để giảng viên thử
-│   └── index.html
-├── backend/
-│   ├── app.py             # FastAPI: /api/health, /api/analyze
-│   ├── inference.py       # Kiểm tra dữ liệu, z-score, suy luận ONNX CPU
-│   └── models/            # CNN source-only và metadata, chỉ dùng phía server
-├── api/                   # Entry point Vercel cho từng endpoint
-├── tests/                 # Parity model, API và gửi EEG theo từng phần
-├── docs/DEPLOYMENT.md     # Phân tích phương án và hướng dẫn deploy miễn phí
-├── requirements.txt
-├── package.json
-└── vercel.json
-```
+Bundle DINOv3 được sao chép nguyên trạng từ
+`../SLARDA_DINOv3/QuickRun/outputs/deployable_a_to_b.pt`.
+SHA-256: `706e9c1486b18ad772b5e89a8575f6823a90f427c49a8b26746d105363f0d4e5`.
 
-## Luồng xử lý
+**Bản này thực sự chạy bundle DINOv3 trên server.** Bundle chứa đủ 191 tensor
+(21.650.693 tham số), gồm backbone, projector và classifier. Loader mới dựng
+đúng kiến trúc rồi `load_state_dict(..., strict=True)`; dùng
+`torch.load(..., weights_only=True)`. Không cần `model.safetensors`, thư mục
+training, đường dẫn ổ G:, GPU hay token Hugging Face ở runtime. Đường dẫn
+`dinov3_checkpoint` cũ bên trong bundle không được sử dụng. SHA-256 phải khớp
+trước khi nạp; thiếu/hỏng model sẽ báo lỗi, không tự đổi model hoặc dùng trọng số ngẫu nhiên.
 
-1. Người dùng chọn file EEG `.npy`; trình duyệt kiểm tra định dạng và vẽ tín hiệu.
-2. Khi bấm **Phân tích trên server**, frontend gửi từng phần tối đa 64 epoch
-   dạng file NumPy float32 đến `POST /api/analyze`.
-3. Backend kiểm tra shape/dtype/kích thước, z-score từng epoch, chạy
-   `sleep-cnn-source.onnx` bằng ONNX Runtime CPU.
-4. Backend trả nhãn W/N1/N2/N3/REM và confidence; frontend ghép theo đúng thứ tự,
-   hiển thị hypnogram, xuất JSON/CSV và in PDF.
+## Giới hạn của bundle tạm
 
-Mỗi phần float32 tối đa khoảng 0,77 MB, thấp hơn 1 MiB của API này và giới hạn
-4,5 MB/request của Vercel. Có thể chọn file gốc lớn hơn 4,5 MB mà không cần Blob:
-ứng dụng gửi nhiều phần độc lập, không giữ trạng thái trên server.
-Không chuẩn hóa hay chạy AI trong trình duyệt; z-score dùng vẽ waveform chỉ để hiển thị.
-Nếu API lỗi, ứng dụng báo lỗi và cho thử lại; không thay bằng dự đoán giả.
+QuickRun dùng 80 epoch tổng cộng trong train/validation/test, warm-up source-only
+2 epoch và SLARDA A→B 2 epoch; backbone đóng băng. Test target chỉ có 10 mẫu:
+accuracy 0,50, macro-F1 0,46095. Đây là checkpoint thử tích hợp, không phải model
+huấn luyện đầy đủ. Giao diện và báo cáo JSON giữ cờ `smoke_test_only: true`.
+Không so sánh trực tiếp metric này với CNN vì tập đánh giá khác nhau.
 
-## Dữ liệu và model
+## Chạy tại máy Windows
 
-- EEG Fpz-Cz, 100 Hz, epoch 30 giây (3.000 mẫu).
-- `.npy` float32/float64 little-endian, C-contiguous; shape `[3000]`,
-  `[N,3000]` hoặc `[N,1,3000]`; tối đa 2.000 epoch và 64 MiB/file gốc.
-- EDF phải được tiền xử lý trước. API không train và không tự chuyển EDF.
-- Model là **CNN source-only EEG_M_SL**, cùng bản ONNX của `web/`.
-  Không tuyên bố đang chạy DINOv3. Có thể nhập JSON kết quả từ notebook.
-- Backend không ghi file EEG ra disk/database và không log nội dung EEG.
-  Dữ liệu được gửi qua HTTPS khi deploy và chỉ được xử lý trong bộ nhớ.
-- Lịch sử báo cáo nằm ở `localStorage` của từng trình duyệt, tối đa 20 báo cáo.
-  Không có tài khoản hay đồng bộ lịch sử giữa các máy.
-- Mẫu demo là tín hiệu tổng hợp. Giới hạn nghiên cứu và thông tin model nằm trong
-  `backend/models/metadata.json`; đây không phải công cụ chẩn đoán.
-
-## Chạy ở máy để phát triển
-
-Cần Node.js 22.12 trở lên và Python 3.12 hoặc 3.13.
-Mở PowerShell trong **SleepcareWeb**:
+Cần Node.js >=22.12 và Python 3.11 hoặc 3.12. Vercel dùng Python 3.12 từ
+`.python-version`. Mở PowerShell và chạy từng lệnh:
 
 ```powershell
-npm ci
+cd "G:\My Drive\SleepCare\SleepcareWeb"
+node --version
+python --version
+npm.cmd ci
 python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-Terminal 1:
+`requirements.txt` ghim PyTorch **CPU**; lần đầu cần tải khoảng vài trăm MB.
+Không cài CUDA hoặc toàn bộ requirements của thư mục training vào web.
+Nếu `python` đang là bản khác, dùng `py -3.12 -m venv .venv` thay lệnh tạo môi trường.
+
+PowerShell thứ nhất — chạy backend và giữ cửa sổ mở:
 
 ```powershell
+cd "G:\My Drive\SleepCare\SleepcareWeb"
 .\.venv\Scripts\python.exe -m uvicorn backend.app:app --host 127.0.0.1 --port 8000
 ```
 
-Terminal 2:
+PowerShell thứ hai — chạy frontend và giữ cửa sổ mở:
 
 ```powershell
-npm run dev
+cd "G:\My Drive\SleepCare\SleepcareWeb"
+npm.cmd run dev
 ```
 
-Mở `http://localhost:5173`. Vite tự chuyển `/api` tới backend cổng 8000.
-Sau khi deploy Vercel, không cần chạy các lệnh này hay bật máy cá nhân.
+Mở `http://localhost:5173` → **Phân tích bằng AI** → **Chọn model AI** → chọn
+SLARDA + DINOv3 hoặc CNN → **Phân tích trên server**. Dropdown bị khóa khi đang
+phân tích. Đổi model rồi phân tích lại sẽ cập nhật kết quả của phiên đang chọn;
+hãy tải báo cáo trước nếu muốn giữ kết quả của cả hai model.
 
-## Kiểm tra
+## Dữ liệu và tiền xử lý
+
+- EEG Fpz-Cz, 100 Hz, epoch 30 giây = 3.000 mẫu.
+- `.npy` float32/float64 little-endian, C-contiguous; shape `[3000]`, `[N,3000]`
+  hoặc `[N,1,3000]`; tối đa 2.000 epoch và 64 MiB/file được chọn trên trình duyệt.
+- Nhận tín hiệu thô theo volt hoặc dữ liệu đã z-score từng epoch. DINOv3 dùng
+  population standard deviation với floor **1e-6**, theo pipeline
+  `raw/prepare_sleep_edf.py`; CNN giữ floor **1e-8** của bản export hiện có.
+- DINOv3: z-score → STFT 256/hop 64 → log amplitude → resize phổ 224×224 →
+  chuẩn hóa ảnh RGB → ViT-S/16 → projector 384→128 → 22 bước → 5 logits.
+- Frontend chỉ đóng gói EEG theo batch của model đã chọn. CPU server chạy model
+  và trả nhãn/confidence; biểu đồ z-score ở browser chỉ để xem tín hiệu.
+- Không nhận `.pt` do khách tải lên và không chạy pickle từ người dùng. EDF cần
+  tiền xử lý trước. Mẫu demo là EEG tổng hợp, không phải dữ liệu người thật.
+
+## API và cấu trúc
+
+| Endpoint | Chức năng |
+| --- | --- |
+| `GET /api/models` | Danh sách model, ID, batch size, giới hạn QuickRun, file có mặt hay không |
+| `GET /api/health?model=slarda-dinov3-quick` | Nạp/kiểm tra model DINOv3 |
+| `GET /api/health?model=cnn-source` | Nạp/kiểm tra CNN |
+| `POST /api/analyze?model=<key>` | Body `.npy`, `Content-Type: application/octet-stream` |
+
+Nếu bỏ `model`, API dùng DINOv3 QuickRun. Model không hợp lệ/batch quá lớn: 422;
+model thiếu hoặc không nạp được: 503; CPU đang bận yêu cầu khác: 429.
+Frontend thử lại có giới hạn khi gặp 429/502/503/504. Không trộn kết quả từ các
+model hoặc phiên bản trọng số khác nhau trong một lần phân tích.
+
+`model_key`, `model_id`, `engine`, `smoke_test_only` đi cùng kết quả, JSON và lịch sử.
+`available` trong catalog chỉ xác nhận file có mặt; `/api/health` mới kiểm tra
+nạp trọng số/runtime. Backend xử lý EEG trong RAM, không ghi file hoặc lưu database.
+Lịch sử tối đa 20 báo cáo nằm trong localStorage của từng trình duyệt.
+
+```text
+backend/catalog.py           # Danh sách model và SHA-256 được phép
+backend/dinov3_model.py      # Kiến trúc DINOv3 độc lập dùng để suy luận
+backend/inference.py         # Kiểm tra NPY, chuẩn hóa, điều phối hai model
+backend/app.py               # API dùng chung ở local và Vercel
+backend/models/              # Hai model và metadata
+api/                        # Ba entrypoint Vercel
+frontend/src/               # Dropdown model, client chia batch, báo cáo
+tests/                      # Kiểm thử API/model và frontend
+docs/DEPLOYMENT.md           # Hướng dẫn deploy từng bước cho người mới
+docs/VERIFICATION.md         # Kết quả kiểm thử thực tế và giới hạn
+```
+
+## Kiểm thử và build
 
 ```powershell
-npm run build
-npm run test:frontend
+cd "G:\My Drive\SleepCare\SleepcareWeb"
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 .\.venv\Scripts\python.exe -m unittest discover -s tests -p "test_*.py" -v
+npm.cmd run test:frontend
+npm.cmd run build
 ```
 
-Backend test so với kết quả ONNX/PyTorch đã xuất, kiểm tra file hỏng và so sánh
-400 epoch gửi nhiều phần với suy luận toàn bộ bản ghi.
-Xem [hướng dẫn deploy](docs/DEPLOYMENT.md) để đưa lên Vercel Hobby miễn phí.
+Fixture DINOv3 được tính từ encoder QuickRun gốc không sửa, khởi tạo bằng
+safetensors gốc rồi nạp bundle, dùng 24 epoch tổng hợp. Kiểm thử so sánh logits,
+nhãn và confidence của backend độc lập với fixture này. Xem chi tiết trong
+[VERIFICATION.md](docs/VERIFICATION.md).
+
+## Deploy miễn phí
+
+Đọc [DEPLOYMENT.md](docs/DEPLOYMENT.md). Vẫn dùng frontend Vite + Python Functions
+trên Vercel Hobby, nhưng **thêm PyTorch làm bundle server lớn hơn trước**:
+cần Fluid Compute và Large Functions; hướng dẫn có biến
+`VERCEL_SUPPORT_LARGE_FUNCTIONS=1`. Tính năng này đang beta. Code local chạy được
+không thay thế kiểm tra build và suy luận trên tài khoản Vercel thực tế.
+
+Model DINOv3 có [giấy phép riêng của Meta](https://github.com/facebookresearch/dinov3/blob/main/LICENSE.md).
+Giữ nguồn gốc/metadata; hướng dẫn dùng repository GitHub cá nhân Private để
+đóng gói model cho backend. Website là công cụ nghiên cứu, không dùng chẩn đoán.

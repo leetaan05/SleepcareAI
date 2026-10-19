@@ -6,7 +6,7 @@
   "fluid": true,
   "functions": {
     "api/*.py": {
-      "maxDuration": 60,
+      "maxDuration": 120,
       "includeFiles": "backend/models/**",
       "excludeFiles": "{frontend/**,tests/**,docs/**,dist/**,node_modules/**,.venv/**,**/__pycache__/**}"
     }

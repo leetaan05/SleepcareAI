@@ -1,49 +1,61 @@
-"""Bounded NumPy uploads and CPU inference using the exported CNN model."""
+"""Bounded NumPy uploads and explicit model selection for CPU inference."""
 from __future__ import annotations
 
 import hashlib
 import io
-import json
-from pathlib import Path
 from threading import Lock
 
 import numpy as np
-import onnxruntime as ort
+from backend.catalog import DEFAULT_MODEL, MODELS, MODEL_DIR
 
 SAMPLES_PER_EPOCH = 3000
 MAX_BATCH_EPOCHS = 64
 MAX_BODY_BYTES = 1024 * 1024
-MODEL_SHA256 = "b52c50097fe98800130d7c83385fa432548d818f03a27fcedcc49ab9a61144b1"
-MODEL_ID = "sleep-cnn-source:" + MODEL_SHA256[:12]
-MODEL_NAME = "EEG_M_SL · source-only (server ONNX)"
-MODEL_DIR = Path(__file__).resolve().parent / "models"
-_session: ort.InferenceSession | None = None
-_session_lock = Lock()
+_runners: dict = {}
+_load_lock = Lock()
+_inference_lock = Lock()
 
 
 class InputError(ValueError):
     """The caller supplied an unsupported or malformed EEG chunk."""
 
 
-def get_session() -> ort.InferenceSession:
-    global _session
-    if _session is None:
-        with _session_lock:
-            if _session is None:
-                model_path = MODEL_DIR / "sleep-cnn-source.onnx"
-                digest = hashlib.sha256(model_path.read_bytes()).hexdigest()
-                metadata = json.loads((MODEL_DIR / "metadata.json").read_text("utf-8"))
-                if digest != MODEL_SHA256 or digest != metadata["onnx_sha256"]:
-                    raise RuntimeError("Model checksum mismatch")
+class ModelBusy(RuntimeError):
+    """Bound concurrent CPU work instead of exhausting server memory."""
+
+
+def model_spec(key: str):
+    if key not in MODELS:
+        raise InputError("Model không hợp lệ. Hãy chọn một model trong danh sách.")
+    return MODELS[key]
+
+
+def get_runner(key: str):
+    spec = model_spec(key)
+    with _load_lock:
+        if key not in _runners:
+            path = MODEL_DIR / spec["file"]
+            with path.open("rb") as stream:
+                digest = hashlib.file_digest(stream, "sha256").hexdigest()
+            if digest != spec["sha256"]:
+                raise RuntimeError("Model checksum mismatch")
+            if key == "cnn-source":
+                import onnxruntime as ort
                 options = ort.SessionOptions()
                 options.intra_op_num_threads = 1
                 options.inter_op_num_threads = 1
                 options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
-                _session = ort.InferenceSession(
-                    str(model_path), sess_options=options,
-                    providers=["CPUExecutionProvider"],
-                )
-    return _session
+                _runners[key] = ort.InferenceSession(str(path), sess_options=options,
+                                                     providers=["CPUExecutionProvider"])
+            else:
+                from backend.dinov3_model import load_model
+                _runners[key] = load_model(path)
+    return _runners[key]
+
+
+def get_session():
+    """CNN session retained for parity checks against the original ONNX export."""
+    return get_runner("cnn-source")
 
 
 def read_npy(body: bytes) -> np.ndarray:
@@ -91,20 +103,33 @@ def read_npy(body: bytes) -> np.ndarray:
     return samples
 
 
-def normalize(samples: np.ndarray) -> tuple[np.ndarray, int]:
+def normalize(samples: np.ndarray, floor: float = 1e-8) -> tuple[np.ndarray, int]:
     values = samples.astype(np.float64)
     flat = np.ptp(values, axis=1) == 0
     centered = values - values.mean(axis=1, keepdims=True)
-    scale = np.maximum(values.std(axis=1, keepdims=True), 1e-8)
+    scale = np.maximum(values.std(axis=1, keepdims=True), floor)
     normalized = (centered / scale).astype(np.float32)
     normalized[flat] = 0
     return normalized[:, None, :], int(flat.sum())
 
 
-def predict(body: bytes) -> dict:
+def predict(body: bytes, model: str = DEFAULT_MODEL) -> dict:
+    spec = model_spec(model)
     samples = read_npy(body)
-    values, flat = normalize(samples)
-    logits = get_session().run(["logits"], {"eeg": values})[0]
+    if len(samples) > spec["max_batch_epochs"]:
+        raise InputError(f"Model này nhận tối đa {spec['max_batch_epochs']} epoch mỗi request.")
+    values, flat = normalize(samples, spec["normalization_floor"])
+    if not _inference_lock.acquire(blocking=False):
+        raise ModelBusy("Máy chủ đang phân tích một yêu cầu khác. Hãy thử lại sau.")
+    try:
+        runner = get_runner(model)
+        if model == "cnn-source":
+            logits = runner.run(["logits"], {"eeg": values})[0]
+        else:
+            from backend.dinov3_model import run_model
+            logits = run_model(runner, values)
+    finally:
+        _inference_lock.release()
     if logits.shape != (len(samples), 5) or not np.isfinite(logits).all():
         raise RuntimeError("Invalid inference output")
     scores = logits.astype(np.float64)
@@ -114,9 +139,11 @@ def predict(body: bytes) -> dict:
     confidences = probabilities[np.arange(len(samples)), predictions]
     return {
         "schema_version": 1,
-        "model_id": MODEL_ID,
-        "model": MODEL_NAME,
-        "engine": "onnxruntime-cpu",
+        "model_key": model,
+        "model_id": spec["id"],
+        "model": spec["name"],
+        "engine": spec["engine"],
+        "smoke_test_only": spec["smoke_test_only"],
         "predictions": predictions.tolist(),
         "confidences": confidences.tolist(),
         "epoch_seconds": 30,

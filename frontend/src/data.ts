@@ -1,7 +1,7 @@
 export const STAGES = ['W', 'N1', 'N2', 'N3', 'REM'] as const;
 export const STAGE_NAMES = ['Thức', 'Ngủ N1', 'Ngủ N2', 'Ngủ N3', 'REM'];
 export const COLORS = ['#f3b65e', '#a2b3d4', '#5686ed', '#8e74d8', '#4db6a5'];
-export type Results = { predictions: number[]; confidences: number[]; model: string; epoch_seconds: number; smoke_test_only?: boolean };
+export type Results = { predictions: number[]; confidences: number[]; model: string; epoch_seconds: number; smoke_test_only?: boolean; model_key?: string; model_id?: string; engine?: string };
 export type Session = { id: string; name: string; date: string; note: string; epochs: number; samples?: Float32Array; results?: Results };
 
 export function parseNpy(buffer: ArrayBuffer): Float32Array {
@@ -64,7 +64,10 @@ export function parseResults(value: unknown): Results {
       !p.confidences.every(v => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1) ||
       typeof p.model !== 'string') throw new Error('JSON kết quả không đúng schema xuất từ notebook.');
   return { predictions: p.predictions, confidences: p.confidences, epoch_seconds: 30,
-    model: p.model.slice(0, 150), smoke_test_only: p.smoke_test_only === true };
+    model: p.model.slice(0, 150), smoke_test_only: p.smoke_test_only === true,
+    model_key: typeof p.model_key === 'string' ? p.model_key.slice(0, 150) : undefined,
+    model_id: typeof p.model_id === 'string' ? p.model_id.slice(0, 150) : undefined,
+    engine: typeof p.engine === 'string' ? p.engine.slice(0, 80) : undefined };
 }
 
 export function duration(epochs: number): string {
