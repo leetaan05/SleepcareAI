@@ -1,0 +1,28 @@
+{
+  "name": "EEG_M_SL \u00b7 source-only",
+  "variant": "source",
+  "class_names": [
+    "W",
+    "N1",
+    "N2",
+    "N3",
+    "REM"
+  ],
+  "channel": "EEG Fpz-Cz",
+  "sampling_rate_hz": 100,
+  "epoch_seconds": 30,
+  "input_shape": [
+    "N",
+    1,
+    3000
+  ],
+  "normalization": "per-epoch z-score; population std; floor 1e-8",
+  "checkpoint_sha256": "70e4d39df15ccb99605face87e111f994a9cdb8bf61f5bb586e2356a6e11ae3b",
+  "onnx_sha256": "b52c50097fe98800130d7c83385fa432548d818f03a27fcedcc49ab9a61144b1",
+  "parity": {
+    "max_abs_logit_error": 7.62939453125e-06,
+    "all_predictions_match": true
+  },
+  "evaluation_note": "Historical SC\u2192ST medium28 source-only: accuracy 0.6993, macro-F1 0.4780; not a clinical model.",
+  "sample_note": "Synthetic EEG, 24 epochs. No real subject data is included."
+}

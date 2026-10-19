@@ -1,0 +1,10 @@
+.git/
+node_modules/
+.venv/
+dist/
+tests/
+docs/
+__pycache__/
+**/__pycache__/
+requirements-dev.txt
+*.zip
