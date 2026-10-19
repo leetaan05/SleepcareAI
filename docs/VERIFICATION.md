@@ -30,7 +30,9 @@ population standard deviation với floor 1e-6. Không có dữ liệu người 
 
 Trong lượt này chưa xác nhận deploy production trên tài khoản Vercel; còn phải
 kiểm tra Build Logs, `/api/health` và phân tích mẫu trên URL production.
-Python 3.12 trên Vercel và hạn mức RAM của Function chưa được kiểm thử trực tiếp.
+Vercel có thể dùng Python 3.14; requirements đã có nhánh wheel tương thích cho
+3.14, trong khi Python 3.12/3.13 giữ bản đã kiểm thử. Runtime Vercel và hạn mức
+RAM của Function chưa được kiểm thử trực tiếp.
 Kiểm tra giao diện bằng tab trình duyệt riêng bị hệ thống duyệt tự động từ chối
 do giới hạn sử dụng; các tương tác qua UI vì vậy chưa được xác nhận hoàn chỉnh.
 

@@ -206,7 +206,7 @@ và kết quả tham chiếu/kiểm thử; không chỉ đổi tên file checkpo
 | `/api/models` 404 | Deploy cả project, kiểm tra `api/index.py`, Root Directory và preset Vite |
 | Bundle vượt 500 MB | Kiểm tra Large Functions, biến môi trường `1`, Fluid Compute/Active CPU, rồi Redeploy |
 | Tổng bundle khoảng 6 GB | Bản cũ có ba entrypoint cùng import PyTorch; phải dùng `api/index.py` duy nhất rồi redeploy |
-| `No matching distribution` | Kiểm tra Python 3.12, dòng CPU index và phiên bản requirements; đừng thay sang Torch CUDA |
+| `No matching distribution` hoặc `uv pip install` thất bại | Dùng commit mới nhất; requirements đã chọn wheel riêng cho Python 3.12/3.13 và 3.14, có CPU index cho Torch. Kiểm tra Vercel đang dùng Python 3.12–3.14; đừng thay sang Torch CUDA |
 | DINOv3 503 | Xem Function Logs: đủ .pt, checksum đúng, CPU Torch/Transformers đã cài; không tự chọn CNN thay |
 | 422 | Kiểm tra model key, .npy đúng định dạng; DINOv3 tối đa 4 epoch/request |
 | 429 | Máy chủ đang bận hoặc nền tảng giới hạn; client đã thử lại có giới hạn, chờ rồi chạy lại |

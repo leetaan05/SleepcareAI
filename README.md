@@ -42,7 +42,9 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-`requirements.txt` ghim PyTorch **CPU**; lần đầu cần tải khoảng vài trăm MB.
+`requirements.txt` dùng PyTorch **CPU**. Python 3.12/3.13 giữ bản đã kiểm thử;
+Python 3.14 tự chọn wheel mới hơn có ABI tương thích. Lần đầu cần tải khoảng
+vài trăm MB.
 Không cài CUDA hoặc toàn bộ requirements của thư mục training vào web.
 Nếu `python` đang là bản khác, dùng `py -3.12 -m venv .venv` thay lệnh tạo môi trường.
 
